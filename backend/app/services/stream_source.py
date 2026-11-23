@@ -24,28 +24,57 @@ class StreamSourceService(BaseModuleService):
     # ---- 业务扩展：消息消费与路由 ----
 
     def register_consumer_group(self, entry_id: int) -> dict[str, Any]:
-        """注册消费组并绑定偏移量策略。"""
+        """注册消费组并绑定偏移量策略。
+
+        偏移量按“来源源 + 消费组 + Topic + 分区”登记；两个源可以有同名 Topic 的
+        同一个分区，但各自的进度必须分开记。已有同源同分区的在途移交时，
+        登记会提示走分区移交而不是直接复用旧进度。
+        """
         entry = store.find(self.MODULE, entry_id)
         if entry is None:
             return {"ok": False, "message": "消息流源不存在"}
-        group = entry.get("消费组", "")
-        topic = entry.get("Topic/Queue名", "")
+        group = str(entry.get("消费组", ""))
+        topic = str(entry.get("Topic/Queue名", ""))
+        source = str(entry.get("源名称", ""))
         if not group or not topic:
             return {"ok": False, "message": "消费组和Topic不能为空"}
-        offset_rows = store.rows("offset_manager")
-        oid = max((int(r.get("id", 0)) for r in offset_rows), default=0) + 1
-        offset_rows.append({
-            "id": oid,
-            "消费组": group,
-            "Topic/Queue": topic,
-            "分区/分片": "0",
-            "当前Offset": "0",
-            "消费延迟": "0",
-            "status": "正常",
-            "pending": True,
-            "abnormal": False,
-        })
-        return {"ok": True, "message": f"消费组 {group} 已注册", "offset_id": oid}
+        partition = str(entry.get("分区/分片", "0") or "0")
+
+        from app.services.offset_manager import OffsetManagerService
+        from app.services.partition_handoff import PartitionHandoffService
+
+        handoff = PartitionHandoffService()
+        conflict = None
+        for other in store.rows(self.MODULE):
+            if int(other.get("id", 0)) == int(entry.get("id", 0)):
+                continue
+            if (str(other.get("Topic/Queue名", "")) == topic
+                    and str(other.get("消费组", "")) == group
+                    and str(other.get("源名称", "")) != source):
+                conflict = other
+                break
+
+        offset = OffsetManagerService().ensure_source_offset(
+            source, group, topic, partition, initial=0)
+        entry["分区/分片"] = partition
+        message = f"消费组 {group} 已在来源 {source} 登记（分区已按来源隔离）"
+        if conflict is not None:
+            covered = handoff.has_active_handoff(source, topic, partition)
+            message += (
+                f"；来源 {conflict.get('源名称')} 也登记了 {topic}/{partition}，"
+                + ("接续需按已受理的分区移交凭据读取" if covered
+                   else "其偏移量不会沿用到本来源，接续前需先受理分区移交")
+            )
+        return {
+            "ok": True,
+            "message": message,
+            "offset_id": offset.get("id"),
+            "source": source,
+            "topic": topic,
+            "partition": partition,
+            "conflict_source": conflict.get("源名称") if conflict is not None else None,
+            "offset_isolated": conflict is not None,
+        }
 
     def consume_messages(self, entry_id: int, batch_size: int = 100) -> list[dict[str, Any]]:
         """从消息流源拉取消息并生产到载荷存储。"""

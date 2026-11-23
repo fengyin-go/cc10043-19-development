@@ -87,7 +87,12 @@ def create_entry(module: str, payload: EntryPayload) -> ActionResult:
     service = require_service(module)
     entry, missing = service.create_entry(payload.values)
     if missing:
-        return ActionResult(ok=False, message=f"缺少必填字段：{'、'.join(missing)}")
+        # 真正的缺字段才加上“缺少必填字段”；业务规则拒绝原样返回，避免误导。
+        if all(item in service.REQUIRED_FIELDS or item in service.LIST_FIELDS for item in missing):
+            message = f"缺少必填字段：{'、'.join(missing)}"
+        else:
+            message = "；".join(missing)
+        return ActionResult(ok=False, message=message)
     return ActionResult(ok=True, message=f"{service.ENTITY}已登记", entry=entry)
 
 

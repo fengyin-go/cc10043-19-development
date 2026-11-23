@@ -4,6 +4,7 @@ from __future__ import annotations
 from app.services.base import BaseModuleService
 from app.services.api_connector import ApiConnectorService
 from app.services.stream_source import StreamSourceService
+from app.services.partition_handoff import PartitionHandoffService
 from app.services.offset_manager import OffsetManagerService
 from app.services.api_scheduler import ApiSchedulerService
 from app.services.record_checkpoint import RecordCheckpointService
@@ -26,6 +27,7 @@ from app.services.throughput_alarm import ThroughputAlarmService
 SERVICES: dict[str, BaseModuleService] = {
     "api_connector": ApiConnectorService(),
     "stream_source": StreamSourceService(),
+    "partition_handoff": PartitionHandoffService(),
     "offset_manager": OffsetManagerService(),
     "api_scheduler": ApiSchedulerService(),
     "record_checkpoint": RecordCheckpointService(),

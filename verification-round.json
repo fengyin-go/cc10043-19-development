@@ -1,6 +1,6 @@
 {
-  "round": 1,
-  "timestamp": "2026-11-21T22:27:00+08:00",
+  "round": 2,
+  "timestamp": "2026-11-23T17:52:00+08:00",
   "base_commit": "b047a120ea0a0b35c2a57ae804a66efd676b4c8d",
   "tests": [
     {
@@ -8,14 +8,7 @@
       "command": "python3 -m compileall backend/",
       "exit_code": 0,
       "result": "passed",
-      "detail": "所有27个Python文件编译成功，无语法错误"
-    },
-    {
-      "name": "frontend-npm-install",
-      "command": "npm install",
-      "exit_code": 0,
-      "result": "passed",
-      "detail": "51 packages added, 0 errors"
+      "detail": "全部Python文件编译成功，无语法错误"
     },
     {
       "name": "frontend-typecheck",
@@ -23,8 +16,28 @@
       "exit_code": 0,
       "result": "passed",
       "detail": "TypeScript类型检查通过，无类型错误"
+    },
+    {
+      "name": "frontend-build",
+      "command": "npm run build",
+      "exit_code": 0,
+      "result": "passed",
+      "detail": "vue-tsc 校验 + vite build 成功，39 modules transformed"
+    },
+    {
+      "name": "handoff-e2e",
+      "command": "backend/.venv/bin/python -I scripts/verify_handoff.py",
+      "exit_code": 0,
+      "result": "passed",
+      "detail": "33项端到端校验通过（连续运行两次均通过）：旧方在途冲突拦截、新旧凭据分区试读、有效断点、无法认领区间、检查点不可双重确认、偏移量按来源隔离"
     }
   ],
   "overall": "passed",
-  "fixes_applied": []
+  "fixes_applied": [
+    "偏移量记录增加来源源维度，按来源+消费组+Topic+分区唯一记账",
+    "新增分区移交记录模块及受理/确认/驳回、新旧角色凭据、在途结果与认领账本",
+    "记录检查点支持凭据确认和可接续历史查询，通用动作不能绕过凭据",
+    "消息流源注册消费组时按来源隔离偏移量并提示分区移交",
+    "新增前端分区移交工作台、演示场景和接口客户端"
+  ]
 }

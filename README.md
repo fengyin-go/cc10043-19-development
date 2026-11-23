@@ -52,7 +52,8 @@ npm run dev
 | --- | --- | --- | --- |
 | API连接器 | `api_connector` | API连接器 | 连接器名称、API端点、认证方式 |
 | 消息流源 | `stream_source` | 消息流源 | 源名称、中间件类型、Topic/Queue名 |
-| 偏移量管理 | `offset_manager` | 偏移量记录 | 消费组、Topic/Queue、分区/分片 |
+| 分区移交记录 | `partition_handoff` | 分区移交记录 | 来源源、目标源、消费组、Topic/Queue、分区/分片、旧方归属区间、允许接续区间、允许接续边界 |
+| 偏移量管理 | `offset_manager` | 偏移量记录 | 来源源、消费组、Topic/Queue、分区/分片 |
 | API调用调度 | `api_scheduler` | 调用计划 | 计划名称、关联API、Cron表达式 |
 | 记录检查点 | `record_checkpoint` | 检查点 | 关联接入任务、检查点类型、检查点值 |
 | 消息解析器 | `message_parser` | 解析模板 | 模板名称、消息格式、字段映射 |
@@ -78,6 +79,35 @@ npm run dev
   `frontend/src/domain/<模块>.ts`，用于承载真实业务差异并维持36题位容量。
 - 列表接口统一返回 `{ items, total, page, size }`，动作接口统一返回 `{ ok, message }`。
 - 状态流转只允许在 `app/services` 里改，路由层不做业务判断。
+
+## 分区移交
+
+两个消息流源可以登记同名 Topic 的同一个分区（例如都是 `orders/0`），但偏移量按
+`来源源 + 消费组 + Topic + 分区` 四元组各记一条，旧源进度不会算到新源头上。
+
+分区移交记录（`partition_handoff`）负责在旧方收尾前把其后可共享的部分交出去：
+
+1. `POST /api/partition_handoff` 登记：填写来源源、目标源、消费组、Topic、分区、
+   旧方归属区间（设计为 `40-45`）、允许接续区间和允许接续边界。
+2. `POST /api/partition_handoff/{id}/accept` 受理：按角色签发新旧两把凭据，
+   凭据里固化来源、消费组、分区、允许区间和边界。
+3. `POST /api/partition_handoff/{id}/inflight` 旧方提交在途结果，登记为待确认。
+   此时 `confirm` 会被拦在“待旧方收尾”，不会把同一段数据交给两边。
+4. `POST /api/partition_handoff/{id}/resolve-inflight` 旧方凭据收尾，只推进旧源偏移。
+5. `POST /api/partition_handoff/{id}/confirm` 确认移交，之后新方才能接续。
+
+凭据只在服务端保存，客户端持有 token；所有读取和检查点确认都校验
+`来源 + 消费组 + Topic + 分区 + 允许区间`：
+
+- `POST /api/partition_handoff/{id}/trial-read`：按凭据试读，返回实际读取的 offset、
+  有效断点和被拒绝的无法认领区间及归属。
+- `POST /api/record_checkpoint/available-history`：给出该接入方可采用的历史区间。
+- `POST /api/record_checkpoint/{cpId}/confirm-with-credential`：凭据确认检查点。
+  同一段 offset 不能被两边（或被另一个检查点）重复确认。
+- `POST /api/partition_handoff/demo`：一键搭出 `orders/0` 场景：旧源先领 40–45，
+  在途未收尾时确认移交被拦下，收尾后 46–50 移交给新源；可重复执行。
+
+端到端校验脚本：`backend/.venv/bin/python -I scripts/verify_handoff.py`（需先启动后端）。
 
 领域：数据工程
 子方向：数据采集、爬虫与RPA

@@ -14,6 +14,9 @@ class Store:
         self._tables: dict[str, list[dict[str, Any]]] = {
             name: [dict(row) for row in rows] for name, rows in SEED_ROWS.items()
         }
+        # 跨模块的内部登记簿（移交凭据、分区占用段等）。不作为一个业务模块暴露，
+        # 但和业务表一样只保存在进程内，方便各领域服务共享同一份事实。
+        self.aux: dict[str, Any] = {}
 
     def module_names(self) -> list[str]:
         return sorted(self._tables)

@@ -78,10 +78,51 @@
       "_page_shape_explicit": true
     },
     {
+      "key": "partition_handoff",
+      "name": "分区移交记录",
+      "entity": "分区移交记录",
+      "fields": [
+        "来源源",
+        "目标源",
+        "消费组",
+        "Topic/Queue",
+        "分区/分片",
+        "旧方归属区间",
+        "允许接续区间",
+        "允许接续边界"
+      ],
+      "statuses": [
+        "待受理",
+        "已受理",
+        "待旧方收尾",
+        "已确认",
+        "已驳回"
+      ],
+      "actions": [
+        "受理移交",
+        "确认移交",
+        "驳回移交"
+      ],
+      "action_targets": [
+        "已受理",
+        "已确认",
+        "已驳回"
+      ],
+      "metrics": [
+        "移交记录总数",
+        "已确认移交",
+        "待旧方收尾"
+      ],
+      "desc": "受理和确认消费组分区归属的移交，签发凭据隔离新旧接入方的读取与检查点确认",
+      "page_shape": "crud-table",
+      "_page_shape_explicit": true
+    },
+    {
       "key": "offset_manager",
       "name": "偏移量管理",
       "entity": "偏移量记录",
       "fields": [
+        "来源源",
         "消费组",
         "Topic/Queue",
         "分区/分片",
@@ -106,7 +147,7 @@
         "正常分区",
         "延迟分区"
       ],
-      "desc": "管理消息队列的消费偏移量、延迟监控和回退重置",
+      "desc": "按来源、消费组和分区分别管理消息队列的消费偏移量、延迟监控和回退重置",
       "page_shape": "crud-table",
       "_page_shape_explicit": true
     },
